@@ -1,0 +1,4 @@
+<resources>
+    <string name="app_name">AiStoryGame</string>
+    <string name="story_game_tutorial_chat">안녕하세요! 이야기 하나를 만들어 드릴까요? 주제를 알려주시겠어요?"</string>
+</resources>
