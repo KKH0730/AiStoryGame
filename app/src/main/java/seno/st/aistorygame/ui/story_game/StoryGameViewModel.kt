@@ -117,8 +117,8 @@ class StoryGameViewModel @Inject constructor(
                     startBlock = {
                         isCanSendMessage = false
                         _storyList.value = _storyList.value.toMutableList().apply {
-                            add(StoryChatModel.UserChat(id = this.size, role = ROLE_USER, content = content))
-                            add(StoryChatModel.Loading(id = this.size))
+                            add(0, StoryChatModel.UserChat(id = this.size, role = ROLE_USER, content = content))
+                            add(0, StoryChatModel.Loading(id = this.size))
                         }.toList()
                     },
                     fetchDataBlock = {
@@ -147,15 +147,15 @@ class StoryGameViewModel @Inject constructor(
                                         assistantAnswer.append(text)
 
                                         _storyList.value = _storyList.value.toMutableList().apply {
-                                            when(val lastStory = lastOrNull()) {
+                                            when(val lastStory = firstOrNull()) {
                                                 is StoryChatModel.AssistantChat -> {
-                                                    set(lastIndex, lastStory.copy(content = assistantAnswer.toString()))
+                                                    set(0, lastStory.copy(content = assistantAnswer.toString()))
                                                 }
                                                 is StoryChatModel.Loading -> {
-                                                    removeLastOrNull()
+                                                    removeFirstOrNull()
 
-                                                    add(StoryChatModel.AssistantChat(id = size, role = ROLE_ASSISTANT, content = assistantAnswer.toString()))
-                                                    assistantIndex = lastIndex
+                                                    add(0, StoryChatModel.AssistantChat(id = size, role = ROLE_ASSISTANT, content = assistantAnswer.toString()))
+                                                    assistantIndex = 0
                                                 }
                                                 else -> {}
 
@@ -178,7 +178,7 @@ class StoryGameViewModel @Inject constructor(
 
                         assistantIndex
                             ?.takeIf { it != -1 }
-                            ?.run { createImageWithTest(index = this, assistantAnswer = assistantAnswer.toString()) }
+                            ?.run { createImage(index = this, assistantAnswer = assistantAnswer.toString()) }
 
                         isCanSendMessage = true
                     }
@@ -189,9 +189,9 @@ class StoryGameViewModel @Inject constructor(
 
     private fun removeLoading() {
         _storyList.value = _storyList.value.toMutableList().apply {
-            val lastStory = lastOrNull()
+            val lastStory = firstOrNull()
             if (lastStory is StoryChatModel.Loading) {
-                removeLastOrNull()
+                removeFirstOrNull()
             }
         }
     }
@@ -209,6 +209,7 @@ class StoryGameViewModel @Inject constructor(
             )
                 .flowOn(Dispatchers.IO)
                 .catch {
+                    Timber.e(it)
                     _storyList.value = _storyList.value.toMutableList().apply {
                         if (lastIndex >= index) {
                             val model = get(index)

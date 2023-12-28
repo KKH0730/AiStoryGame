@@ -86,7 +86,8 @@ fun StoryChatContainer(
         LazyColumn(
             state = scrollState,
             verticalArrangement = Arrangement.spacedBy(space = 20.dp),
-            contentPadding = PaddingValues(vertical = 100.dp),
+            contentPadding = PaddingValues(top = 100.dp, bottom = 20.dp),
+            reverseLayout = true,
             modifier = modifier
                 .background(color = Color_FF2E2F39)
         ) {

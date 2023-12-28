@@ -15,6 +15,11 @@ val keystoreFileInputStream = FileInputStream(keystorePropertiesFile)
 val keystoreProperties = Properties()
 keystoreProperties.load(keystoreFileInputStream)
 
+val localPropertiesFile = rootProject.file("local.properties")
+val localPropertiesFileInputStream = FileInputStream(localPropertiesFile)
+val localProperties = Properties()
+localProperties.load(localPropertiesFileInputStream)
+
 android {
     compileSdk = 34
 
@@ -26,6 +31,8 @@ android {
         versionName = "1.0.0"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
+
+        buildConfigField("String", "OPEN_AI_API_KEY", "${localProperties["open_ai_api_key"]}")
     }
 
 
