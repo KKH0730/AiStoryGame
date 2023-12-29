@@ -20,7 +20,8 @@ import seno.st.aistorygame.ui.story_game.model.StoryChatModel
 fun StoryGameScreen(
     aiStoryHistory: List<StoryChatModel>,
     isShowKeyboard: Boolean,
-    onClickSend: (String) -> Unit
+    onClickSend: (String) -> Unit,
+    onClickReGenerate: () -> Unit
 ) {
     Column(
         verticalArrangement = Arrangement.Bottom,
@@ -29,6 +30,7 @@ fun StoryGameScreen(
         StoryChatContainer(
             aiStoryHistory = aiStoryHistory,
             isShowKeyboard = isShowKeyboard,
+            onClickReGenerate = onClickReGenerate,
             modifier = Modifier.weight(weight = 1f)
         )
         ChatInputView(onClickSend = onClickSend, modifier = Modifier)

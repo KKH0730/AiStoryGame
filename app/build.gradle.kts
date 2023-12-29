@@ -32,7 +32,8 @@ android {
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
 
-        buildConfigField("String", "OPEN_AI_API_KEY", "${localProperties["open_ai_api_key"]}")
+        buildConfigField("String", "CHAT_GPT_API_KEY", "${localProperties["chat_gpt_api_key"]}")
+        buildConfigField("String", "GEMINI_API_KEY", "${localProperties["gemini_api_key"]}")
     }
 
 
@@ -154,6 +155,9 @@ dependencies {
     implementation(Dependency.Retrofit.RETROFIT)
     implementation(Dependency.Retrofit.GSON_CONVERTER)
     implementation(Dependency.OkHttp.LOGGING_INTERCEPTOR)
+
+    // Gson
+    implementation(Dependency.Gson.GSON)
 
     // RX
     implementation(Dependency.Rx.RXJAVA)

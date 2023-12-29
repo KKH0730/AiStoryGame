@@ -4,10 +4,13 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.google.ai.client.generativeai.GenerativeModel
 import com.google.ai.client.generativeai.type.BlockThreshold
+import com.google.ai.client.generativeai.type.GenerateContentResponse
 import com.google.ai.client.generativeai.type.HarmCategory
 import com.google.ai.client.generativeai.type.SafetySetting
 import com.google.ai.client.generativeai.type.content
 import com.google.ai.client.generativeai.type.generationConfig
+import com.google.gson.JsonArray
+import com.google.gson.JsonObject
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.CoroutineExceptionHandler
 import kotlinx.coroutines.Dispatchers
@@ -18,10 +21,13 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.catch
 import kotlinx.coroutines.flow.collectLatest
+import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.flow.flowOn
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
+import org.json.JSONObject
 import seno.st.aistorygame.App
+import seno.st.aistorygame.BuildConfig
 import seno.st.aistorygame.R
 import seno.st.aistorygame.data.AiRepositoryImpl
 import seno.st.aistorygame.extension.executeWithDividedBlock
@@ -31,26 +37,22 @@ import seno.st.aistorygame.ui.story_game.model.StoryChatModel
 import timber.log.Timber
 import javax.inject.Inject
 
-//const val SYSTEM_INSTRUCTIONS = "You are a story game builder. Your job is to generate stories and choices that fit the theme and mood of the story presented by the user. The first time the user enters a topic, you generate a story and choices. Then you generate the next story and choices that match the answers the user chooses. After the cycle of story creation and user choices is repeated five times, you write the ending of the story and wrap up the story. It is important to note that you must speak in Korean.\u2028\u2028\u2028Here's what you need to do\n" +
-//        "1.Always create a choice or question along with the story creation.\u20282. show how many choices are left at the end of each story.\u20283.Always speak in Korean.\n" +
-//        "4. use 700 or fewer tokens for the story and choices you create."
-const val SYSTEM_INSTRUCTIONS = "당신은 스토리 게임 빌더입니다. 당신의 임무는 사용자가 제시하는 주제와 분위기에 맞는 창의적인 스토리와 재미있는 선택지를 생성하는 것입니다. 사용자가 처음 주제를 입력하면 당신은 스토리와 선택지를 생성하고 대화를 멈춥니다. 그런 다음 사용자가 선택지에서 선택하면, 당신은 선택된 내용을 활용하여 다음 스토리와 선택지를 생성하고 대화를 멈춥니다. 당신이 스토리를 총 5번 생성하면 6번째 생성 시 스토리의 엔딩을 작성하고 대화를 끝냅니다.\n" +
-        "\n" +
-        " 당신이 명심해야 할 사항은 다음과 같습니다.\n" +
-        "1. 스토리는 반드시 1000자 이하로 작성해야한다.\n" +
-        "2. 엔딩을 제외한 스토리가 생성할 때마다 선택지도 반드시 생성한다.\n" +
-        "3. 엔딩을 제외한 스토리가 생성할 때마다 생성된 텍스트 마지막에 엔딩까지 남은 횟수를 “엔딩까지 남은 횟수: %d” 형식으로 보여준다.\n" +
-        "4. 하나의 스토리를 만들고 그에 대한 선택지를 생성한 후에 대화를 멈춥니다.\n" +
-        "6. 스토리를 디테일하게 작성한다."
 
-//const val ROLE_SYSTEM = "system"
-//const val ROLE_ASSISTANT = "assistant"
+const val SYSTEM_INSTRUCTIONS = "당신은 스토리 게임 빌더입니다. 당신의 임무는 사용자가 제시하는 주제에 대한 갈등이 포함된 스토리를 생성하고, 마지막 스토리와 연결되는 주관식이나 객관식을 둘 중에 하나를 랜덤으로 생성하는 것입니다. 사용자가 처음 주제를 입력하면 당신은 스토리와 주관식이나 객관식주관식이나 객관식을 생성하고 대화를 멈춥니다. 그런 다음 사용자가 답변을 하면, 당신은 사용자의 답변을 활용하여 다음 스토리와 주관식이나 객관식을 생성하고 대화를 멈춥니다. 당신이 스토리를 총 5번 생성하면 6번째 생성 시 스토리의 엔딩을 작성하고 대화를 끝냅니다.\n" +
+        "\n" +
+        "당신이 명심해야 할 사항은 다음과 같습니다.\n" +
+        "1. 당신은 반드시 스토리를 한국어(한글)로 생성한다.\n" +
+        "2. 당신은 반드시 스토리를 1000자 이내로 작성한다.\n" +
+        "3. 주관식이나 객관식 질문은 반드시 스토리의 갈등에 대해 주인공이 어떻게 문제를 해결할지 에 대한 질문이다.\n" +
+        "4. 엔딩을 제외한 스토리가 생성할 때마다 다음 스토리의 대한 주관식이나 객관식 둘 중에 하나를 랜덤으로 반드시 생성한다. 주관식의 형식은 다음과 같습니다. \"**주관식** \n주관식 내용\". 객관식의 형식은 다음과 같습니다. \"**객관식** \n1. 첫번째 선택지\n.2. 2번째 선택지\n3. 3번째 선택지.\n" +
+        "5. 엔딩을 제외한 스토리가 생성할 때마다 생성된 텍스트 마지막에 엔딩까지 남은 횟수를 “엔딩까지 남은 횟수: %d” 형식으로 보여준다.\n" +
+        "6. 당신은 반드시 하나의 스토리를 만들고 그에 대한 선택지를 생성한 후에 대화를 멈춘다.\n" +
+        "7. 당신은 반드시 전후 상황이 명확하고 개연성있는 스토리를 작성한다."
 
 
 const val ROLE_ASSISTANT = "model"
 const val ROLE_USER = "user"
 const val ROLE_TUTORIAL = "tutorial"
-const val MAX_TOKENS = 2000
 
 @HiltViewModel
 class StoryGameViewModel @Inject constructor(
@@ -77,7 +79,7 @@ class StoryGameViewModel @Inject constructor(
     private val generativeModel: GenerativeModel by lazy {
         GenerativeModel(
             modelName = "gemini-pro",
-            apiKey = "AIzaSyBg-3wmKQ8tGipTTJegLYLKSOXCbQh9jWM",
+            apiKey = BuildConfig.GEMINI_API_KEY,
             safetySettings = listOf(
                 SafetySetting(HarmCategory.DANGEROUS_CONTENT, BlockThreshold.NONE),
                 SafetySetting(HarmCategory.HARASSMENT, BlockThreshold.NONE),
@@ -97,12 +99,14 @@ class StoryGameViewModel @Inject constructor(
     }
 
 
-    fun send(content: String) {
+    fun send(content: String = "", isReGenerate: Boolean = false) {
+        var prompt = content
+
         if (!isCanSendMessage) return
-        val lastChat = aiStoryHistory.lastOrNull()
-        if (lastChat != null && lastChat is StoryChatModel.UserChat) {
-            return
-        }
+
+        aiStoryHistory.firstOrNull()
+            .takeIf { lastChat -> lastChat != null && lastChat is StoryChatModel.UserChat }
+            ?: return
 
         viewModelScope.launch(
             SupervisorJob() + CoroutineExceptionHandler { _, throwable ->
@@ -116,14 +120,29 @@ class StoryGameViewModel @Inject constructor(
                 executeWithDividedBlock(
                     startBlock = {
                         isCanSendMessage = false
+
+                        if (isReGenerate)  {
+                            removeStreamError()
+
+                            _storyList.value.firstOrNull()
+                                ?.takeIf { lastChat -> lastChat is StoryChatModel.UserChat }
+                                ?.run {
+                                    val lastUserChat = this as StoryChatModel.UserChat
+                                    prompt = lastUserChat.content
+                                }?: return@executeWithDividedBlock
+                        }
+
                         _storyList.value = _storyList.value.toMutableList().apply {
-                            add(0, StoryChatModel.UserChat(id = this.size, role = ROLE_USER, content = content))
+                            if (!isReGenerate) {
+                                add(0, StoryChatModel.UserChat(id = this.size, role = ROLE_USER, content = prompt))
+                            }
                             add(0, StoryChatModel.Loading(id = this.size))
                         }.toList()
                     },
                     fetchDataBlock = {
                         val assistantAnswer = StringBuilder()
                         var assistantIndex = -1
+
 
                         generativeModel.startChat(
                             history = aiStoryHistory.map {
@@ -134,26 +153,26 @@ class StoryGameViewModel @Inject constructor(
                                     content(role = assistantChat.role) { text(assistantChat.content) }
                                 }
                             }
-                        ).sendMessageStream(content)
+                        )
+                            .sendMessageStream(prompt = prompt)
                             .flowOn(Dispatchers.IO)
                             .catch {
-                                Timber.e("kkhdev stream error : ${it.message}")
                                 removeLoading()
+                                removeLastAssistantChat()
+                                addStreamError()
                                 isCanSendMessage = true
                             }
                             .collectLatest { response ->
                                 response.text
-                                    ?.let { text ->
-                                        assistantAnswer.append(text)
-
+                                    ?.let { text -> assistantAnswer.append(text) }
+                                    ?.run { removeLoading() }
+                                    ?.also {
                                         _storyList.value = _storyList.value.toMutableList().apply {
                                             when(val lastStory = firstOrNull()) {
                                                 is StoryChatModel.AssistantChat -> {
                                                     set(0, lastStory.copy(content = assistantAnswer.toString()))
                                                 }
-                                                is StoryChatModel.Loading -> {
-                                                    removeFirstOrNull()
-
+                                                is StoryChatModel.UserChat -> {
                                                     add(0, StoryChatModel.AssistantChat(id = size, role = ROLE_ASSISTANT, content = assistantAnswer.toString()))
                                                     assistantIndex = 0
                                                 }
@@ -163,6 +182,7 @@ class StoryGameViewModel @Inject constructor(
                                         }.toList()
                                     }
                             }
+                        Timber.e("kkhdev result : $assistantAnswer")
                         assistantAnswer.toString() to assistantIndex
                     },
                     endBlock = { pair ->
@@ -172,13 +192,13 @@ class StoryGameViewModel @Inject constructor(
                         assistantAnswer
                             ?.takeIf { it.isNotEmpty() }
                             ?.run {
-                                aiStoryHistory.add(StoryChatModel.UserChat(id = aiStoryHistory.size, role = ROLE_USER, content = content))
+                                aiStoryHistory.add(StoryChatModel.UserChat(id = aiStoryHistory.size, role = ROLE_USER, content = prompt))
                                 aiStoryHistory.add(StoryChatModel.AssistantChat(id = aiStoryHistory.size, role = ROLE_ASSISTANT, content = this))
                             }
 
                         assistantIndex
                             ?.takeIf { it != -1 }
-                            ?.run { createImage(index = this, assistantAnswer = assistantAnswer.toString()) }
+                            ?.run { createImageWithTest(index = this, assistantAnswer = assistantAnswer.toString()) }
 
                         isCanSendMessage = true
                     }
@@ -191,6 +211,30 @@ class StoryGameViewModel @Inject constructor(
         _storyList.value = _storyList.value.toMutableList().apply {
             val lastStory = firstOrNull()
             if (lastStory is StoryChatModel.Loading) {
+                removeFirstOrNull()
+            }
+        }
+    }
+
+    private fun removeLastAssistantChat() {
+        _storyList.value = _storyList.value.toMutableList().apply {
+            val lastStory = firstOrNull()
+            if (lastStory is StoryChatModel.AssistantChat) {
+                removeFirstOrNull()
+            }
+        }
+    }
+
+    private fun addStreamError() {
+        _storyList.value = _storyList.value.toMutableList().apply {
+            add(0, StoryChatModel.StreamError(id = this.size))
+        }
+    }
+
+    private fun removeStreamError() {
+        _storyList.value = _storyList.value.toMutableList().apply {
+            val lastStory = firstOrNull()
+            if (lastStory is StoryChatModel.StreamError) {
                 removeFirstOrNull()
             }
         }

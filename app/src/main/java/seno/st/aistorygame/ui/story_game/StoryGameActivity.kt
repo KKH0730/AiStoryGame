@@ -27,7 +27,8 @@ class StoryGameActivity : ComponentActivity() {
                     StoryGameScreen(
                         aiStoryHistory = aiStoryViewModel.storyList.collectAsStateWithLifecycle().value,
                         isShowKeyboard = aiStoryViewModel.isKeyboardVisible.collectAsStateWithLifecycle().value,
-                        onClickSend = aiStoryViewModel::send
+                        onClickSend = aiStoryViewModel::send,
+                        onClickReGenerate = { aiStoryViewModel.send(isReGenerate = true) }
                     )
                 }
             }

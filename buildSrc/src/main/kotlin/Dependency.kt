@@ -103,6 +103,10 @@ object Dependency {
         const val GSON_CONVERTER = "com.squareup.retrofit2:converter-gson:$VERSION"
     }
 
+    object Gson {
+        const val GSON = "com.google.code.gson:gson:2.8.8"
+    }
+
     object Rx {
         const val RXJAVA = "io.reactivex.rxjava2:rxjava:2.2.21"
         const val RXANDROID = "io.reactivex.rxjava2:rxandroid:2.1.1"
